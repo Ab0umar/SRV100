@@ -1,11 +1,11 @@
 param(
-  [string]$IssPath = "E:\SELRS.cc\desktop\SelrsDesktopInstaller.iss"
+  [string]$IssPath = "E:\SRV100\desktop\SelrsDesktopInstaller.iss"
 )
 
 $ErrorActionPreference = "Stop"
 
 # Auto-sync version from root package.json
-$packageJsonPath = "E:\SELRS.cc\package.json"
+$packageJsonPath = "E:\SRV100\package.json"
 $packageJson = Get-Content -Raw $packageJsonPath | ConvertFrom-Json
 $version = $packageJson.version
 
@@ -29,9 +29,9 @@ if (-not $iscc) {
 }
 
 Write-Host "[SELRS Installer] Building desktop publish..." -ForegroundColor Cyan
-powershell -ExecutionPolicy Bypass -File "E:\SELRS.cc\desktop\build-selrs-desktop.ps1"
+powershell -ExecutionPolicy Bypass -File "E:\SRV100\desktop\build-selrs-desktop.ps1"
 
 Write-Host "[SELRS Installer] Compiling Inno Setup..." -ForegroundColor Cyan
 & $iscc $IssPath
 
-Write-Host "[SELRS Installer] Done -> C:\Users\SELRS\OneDrive\Documents\SELRS.cc\SELRS-Desktop-Setup-$version.exe" -ForegroundColor Green
+Write-Host "[SELRS Installer] Done -> C:\Users\SELRS\OneDrive\Documents\SELRS.CC\SELRS-Desktop-Setup-$version.exe" -ForegroundColor Green

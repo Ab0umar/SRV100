@@ -1,11 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#0F2F5C</color>
-    <color name="colorPrimaryDark">#0A2142</color>
-    <color name="colorAccent">#C9952E</color>
-    <color name="splash_background">#F6F9FC</color>
-    <color name="splash_icon_background">#E3ECF7</color>
-    <color name="ic_launcher_background">#0F2F5C</color>
-    <color name="ic_launcher_monochrome">#0F2F5C</color>
-    <color name="notification_color">#0F2F5C</color>
+    <color name="notification_color">#FF6B00</color>
 </resources>

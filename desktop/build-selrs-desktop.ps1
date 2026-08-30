@@ -1,12 +1,12 @@
 param(
   [string]$Configuration = "Release",
   [string]$Runtime = "win-x64",
-  [string]$OutDir = "E:\SELRS.cc\desktop\publish"
+  [string]$OutDir = "E:\SRV100\desktop\publish"
 )
 
 $ErrorActionPreference = "Stop"
 
-$project = "E:\SELRS.cc\desktop\SelrsDesktop\SelrsDesktop.csproj"
+$project = "E:\SRV100\desktop\SelrsDesktop\SelrsDesktop.csproj"
 
 Write-Host "[SELRS] Publishing..." -ForegroundColor Cyan
 dotnet publish $project `

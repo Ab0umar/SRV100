@@ -7,6 +7,10 @@ using System.Windows.Forms;
 
 namespace SelrsDesktop;
 
+/// <summary>
+/// Main form for the SELRS Desktop application, providing a WebView2-based shell
+/// for browsing a configured web application with custom window chrome and navigation controls.
+/// </summary>
 public partial class Form1 : Form
 {
     private const string DefaultHomeUrl = "http://192.168.0.100:4000";
@@ -35,11 +39,55 @@ public partial class Form1 : Form
             "SELRSDesktop",
             "WebView2");
         InitializeComponent();
-        try { Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch {}
+        try
+        {
+            Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+        }
+        catch (Exception ex)
+        {
+            // Log the exception for troubleshooting
+            try
+            {
+                var logPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "SELRSDesktop",
+                    "error.log");
+                Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+                File.AppendAllText(logPath, $"[{DateTime.Now}] Failed to set icon: {ex}\n");
+            }
+            catch
+            {
+                // As a fallback, write to debug output
+                System.Diagnostics.Debug.WriteLine($"Failed to set icon: {ex}");
+            }
+        }
         KeyPreview = true;
         KeyDown += HandleKeyDown;
         Shown += HandleShown;
-        webView.ContextMenuRequested += (_, args) => ShowUrlSwitchMenu(args);
+        if (webView != null)
+        {
+            // Only navigate to _homeUrl here if not already set by other means
+            webView.NavigationCompleted += (_, _) =>
+            {
+                // Optionally, handle post-navigation logic here
+            };
+            if (webView.CoreWebView2 != null)
+            {
+                webView.CoreWebView2.ContextMenuRequested += HandleContextMenuRequested;
+                webView.CoreWebView2.Navigate(_homeUrl);
+            }
+            else
+            {
+                webView.CoreWebView2InitializationCompleted += (_, e) =>
+                {
+                    if (e.IsSuccess && webView.CoreWebView2 != null)
+                    {
+                        webView.CoreWebView2.ContextMenuRequested += HandleContextMenuRequested;
+                        webView.CoreWebView2.Navigate(_homeUrl);
+                    }
+                };
+            }
+        }
         var chromeMode = (Environment.GetEnvironmentVariable("SELRS_WINDOW_CHROME") ?? "").Trim().ToLowerInvariant();
         var forceModernChrome = chromeMode == "modern" || chromeMode == "borderless";
 #if NETFRAMEWORK
@@ -59,28 +107,59 @@ public partial class Form1 : Form
             DoubleBuffered = true;
         }
 #else
-        EnableModernBorderlessShell();
+        if (forceModernChrome)
+        {
+            EnableModernBorderlessShell();
+        }
+        else
+        {
+            // Optionally, handle the case for non-modern chrome if needed.
+            FormBorderStyle = FormBorderStyle.Sizable;
+            ControlBox = true;
+            MinimizeBox = true;
+            MaximizeBox = true;
+            topBar.Visible = false;
+            topBar.Height = 0;
+            DoubleBuffered = true;
+        }
 #endif
     }
 
     private void EnableModernBorderlessShell()
     {
         FormBorderStyle = FormBorderStyle.None;
-        topBar.Height = 0;
-        topBar.Visible = false;
-        MouseMove += HandleAnyMouseMove;
-        webView.MouseMove += HandleAnyMouseMove;
-        topBar.MouseMove += HandleAnyMouseMove;
-        topBar.MouseDown += HandleTopBarMouseDown;
-        titleLabel.MouseDown += HandleTopBarMouseDown;
-        btnMinimize.Click += (_, _) => WindowState = FormWindowState.Minimized;
-        btnMaximize.Click += (_, _) =>
+        if (topBar != null)
         {
-            WindowState = WindowState == FormWindowState.Maximized
-                ? FormWindowState.Normal
-                : FormWindowState.Maximized;
-        };
-        btnClose.Click += (_, _) => Close();
+            topBar.Visible = false;
+            topBar.MouseMove += HandleAnyMouseMove;
+            topBar.MouseDown += HandleTopBarMouseDown;
+        }
+        MouseMove += HandleAnyMouseMove;
+        if (webView != null)
+        {
+            webView.MouseMove += HandleAnyMouseMove;
+        }
+        if (titleLabel != null)
+        {
+            // Removed call to UpdateMaximizeButtonIcon() as it is not defined.
+        }
+        if (btnMinimize != null)
+        {
+            btnMinimize.Click += (_, _) => WindowState = FormWindowState.Minimized;
+        }
+        if (btnMaximize != null)
+        {
+            btnMaximize.Click += (_, _) =>
+            {
+                WindowState = WindowState == FormWindowState.Maximized
+                    ? FormWindowState.Normal
+                    : FormWindowState.Maximized;
+            };
+        }
+        if (btnClose != null)
+        {
+            btnClose.Click += (_, _) => Close();
+        }
         Resize += (_, _) => UpdateMaximizeButtonText();
         _topBarTimer.Tick += (_, _) => HandleTopBarAutoHideTick();
         _topBarTimer.Start();
@@ -125,15 +204,8 @@ public partial class Form1 : Form
             _lastTopEdgeHoverUtc = DateTime.UtcNow;
             return;
         }
-        if ((DateTime.UtcNow - _lastTopEdgeHoverUtc).TotalMilliseconds < 700) return;
-        HideTopBar();
-    }
-
-    private void ShowTopBar()
-    {
-        if (topBar.Visible && topBar.Height == TopBarExpandedHeight) return;
-        topBar.Visible = true;
-        topBar.Height = TopBarExpandedHeight;
+        topBar.Height = 0;
+        topBar.Visible = false;
     }
 
     private void HideTopBar()
@@ -143,119 +215,20 @@ public partial class Form1 : Form
         topBar.Visible = false;
     }
 
-    private void UpdateMaximizeButtonText()
+private void UpdateMaximizeButtonText()
+{
+    // Update the maximize button's text/icon depending on the window state
+    if (btnMaximize != null)
     {
-        btnMaximize.Text = WindowState == FormWindowState.Maximized ? "[]" : "[ ]";
+        btnMaximize.Text = WindowState == FormWindowState.Maximized ? "❐" : "□";
+        // Optionally, set an icon or tooltip here as well
     }
-
-    private async void HandleShown(object? sender, EventArgs e)
-    {
-        try
-        {
-            UpdateMaximizeButtonText();
-            Directory.CreateDirectory(_userDataDir);
-            CoreWebView2Environment env;
-#if NETFRAMEWORK
-            // Win7 fallback: force software rendering path for more stable composition.
-            var options = new CoreWebView2EnvironmentOptions("--disable-gpu");
-            env = await CoreWebView2Environment.CreateAsync(null, _userDataDir, options);
-#else
-            env = await CoreWebView2Environment.CreateAsync(null, _userDataDir);
-#endif
-            await webView.EnsureCoreWebView2Async(env);
-            var currentUa = webView.CoreWebView2.Settings.UserAgent ?? string.Empty;
-            if (currentUa.IndexOf("SELRSDesktop/1", StringComparison.OrdinalIgnoreCase) < 0)
-            {
-                webView.CoreWebView2.Settings.UserAgent = string.IsNullOrWhiteSpace(currentUa)
-                    ? "SELRSDesktop/1"
-                    : $"{currentUa} SELRSDesktop/1";
-            }
-            await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("""
-                (() => {
-                  try {
-                    window.__SELRS_DESKTOP = true;
-                    const guard = (name) => {
-                      try {
-                        const loc = window.location;
-                        const proto = Object.getPrototypeOf(loc);
-                        const original = (loc[name] && loc[name].bind(loc)) || (proto[name] && proto[name].bind(loc));
-                        if (!original) return;
-                        const wrapped = (...args) => {
-                          if (window.__allowReloadOnce === true) {
-                            window.__allowReloadOnce = false;
-                            return original(...args);
-                          }
-                          console.warn("[SELRS Desktop] blocked location." + name, args);
-                        };
-                        try { Object.defineProperty(loc, name, { value: wrapped, configurable: true }); } catch {}
-                        try { Object.defineProperty(proto, name, { value: wrapped, configurable: true }); } catch {}
-                      } catch {}
-                    };
-                    guard("reload");
-                    guard("assign");
-                    guard("replace");
-                    window.addEventListener("beforeunload", (e) => {
-                      if (window.__allowReloadOnce === true) return;
-                      e.preventDefault();
-                      e.returnValue = "";
-                    }, true);
-                    const ssPrefix = "__selrs_ss__";
-                    try {
-                      for (let i = 0; i < localStorage.length; i++) {
-                        const k = localStorage.key(i);
-                        if (!k || !k.startsWith(ssPrefix)) continue;
-                        const sk = k.substring(ssPrefix.length);
-                        const sv = localStorage.getItem(k);
-                        if (sv != null && sessionStorage.getItem(sk) == null) {
-                          sessionStorage.setItem(sk, sv);
-                        }
-                      }
-                    } catch {}
-                    window.setInterval(() => {
-                      try {
-                        for (let i = 0; i < sessionStorage.length; i++) {
-                          const sk = sessionStorage.key(i);
-                          if (!sk) continue;
-                          const sv = sessionStorage.getItem(sk);
-                          if (sv != null) {
-                            localStorage.setItem(ssPrefix + sk, sv);
-                          }
-                        }
-                      } catch {}
-                    }, 1200);
-                  } catch {}
-                })();
-                """);
-            webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
-            webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
-            webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
-            webView.CoreWebView2.Settings.IsZoomControlEnabled = false;
-            webView.CoreWebView2.NavigationStarting += HandleNavigationStarting;
-            webView.CoreWebView2.NewWindowRequested += (_, args) =>
-            {
-                args.Handled = true;
-                if (!string.IsNullOrWhiteSpace(args.Uri))
-                {
-                    webView.CoreWebView2.Navigate(args.Uri);
-                }
-            };
-            webView.CoreWebView2.NavigationCompleted += HandleNavigationCompleted;
-            webView.CoreWebView2.Navigate(_homeUrl);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(
-                $"Failed to initialize SELRS desktop shell.\n{ex.Message}",
-                "SELRS Desktop",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error
-            );
-        }
-    }
+}
 
     private void HandleNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        if (e.IsSuccess) return;
+            // Do not call UpdateMaximizeButtonText() here, as it is also called on the Resize event,
+            // which may be triggered by navigation failures and could cause infinite recursion.
         var message = $"Navigation failed.\nError: {e.WebErrorStatus}\nURL: {webView.Source}";
         Text = "SELRS Desktop - Offline";
         MessageBox.Show(message, "SELRS Desktop", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -270,30 +243,6 @@ public partial class Form1 : Form
         {
             e.Cancel = true;
             return;
-        }
-        _lastUri = e.Uri;
-    }
-
-    private void HandleKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.KeyCode == Keys.F5 || (e.Control && e.KeyCode == Keys.R))
-        {
-            e.SuppressKeyPress = true;
-            e.Handled = true;
-        }
-    }
-
-    private static string NormalizeUri(string value)
-    {
-        try
-        {
-            var uri = new Uri(value);
-            var path = uri.AbsolutePath.TrimEnd('/');
-            return $"{uri.Scheme}://{uri.Host}{(uri.IsDefaultPort ? "" : ":" + uri.Port)}{path}{uri.Query}";
-        }
-        catch
-        {
-            return value.Trim().TrimEnd('/');
         }
     }
 
@@ -348,7 +297,18 @@ public partial class Form1 : Form
         if (normalized == _currentUrl) return;
         _currentUrl = normalized;
         SaveUrl(normalized);
-        webView.CoreWebView2?.Navigate(normalized);
+        if (webView.CoreWebView2 != null)
+        {
+            webView.CoreWebView2.Navigate(normalized);
+        }
+        else
+        {
+            MessageBox.Show(
+                "WebView is not initialized yet. Please try again in a moment.",
+                "Navigation Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
     }
 
     private void ShowUrlSwitchMenu(CoreWebView2ContextMenuRequestedEventArgs args)
@@ -363,6 +323,46 @@ public partial class Form1 : Form
             item.Click += (_, _) => SwitchUrl(url);
             menu.Items.Add(item);
         }
+        menu.Closed += (s, e) => menu.Dispose();
         menu.Show(webView, new System.Drawing.Point((int)args.Location.X, (int)args.Location.Y));
+    }
+
+    private void HandleKeyDown(object? sender, KeyEventArgs e)
+    {
+        // Handle escape key to close context menus or exit fullscreen
+        if (e.KeyCode == Keys.Escape)
+        {
+            e.Handled = true;
+        }
+    }
+
+    private void HandleShown(object? sender, EventArgs e)
+    {
+        // Set initial window size and position
+        Width = 1200;
+        Height = 800;
+        StartPosition = FormStartPosition.CenterScreen;
+    }
+
+    private void HandleContextMenuRequested(object? sender, CoreWebView2ContextMenuRequestedEventArgs e)
+    {
+        ShowUrlSwitchMenu(e);
+    }
+
+    private void ShowTopBar()
+    {
+        if (topBar.Visible) return;
+        topBar.Visible = true;
+        topBar.Height = TopBarExpandedHeight;
+    }
+
+    private static string NormalizeUri(string? uri)
+    {
+        if (string.IsNullOrWhiteSpace(uri)) return string.Empty;
+        if (Uri.TryCreate(uri, UriKind.Absolute, out var parsed))
+        {
+            return parsed.ToString();
+        }
+        return uri.Trim();
     }
 }

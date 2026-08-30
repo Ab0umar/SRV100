@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { CalendarDays, LayoutDashboard, Search, Settings, UserRound } from "lucide-react";
+import {
+  CalendarDays,
+  Clock,
+  Eye,
+  FileText,
+  LayoutDashboard,
+  LayoutGrid,
+  Pill,
+  Repeat,
+  Search,
+  Settings,
+  UserRound,
+} from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import {
@@ -49,19 +61,33 @@ export default function GlobalCommandPalette() {
   }, []);
 
   useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener("selrs:open-command-palette", onOpen);
+    return () => window.removeEventListener("selrs:open-command-palette", onOpen);
+  }, []);
+
+  useEffect(() => {
     if (!open) setQuery("");
   }, [open]);
 
   const data = (searchQuery.data ?? []) as PatientSearchResult[];
 
   const quickLinks = useMemo(() => {
+    const isAdmin = String(user?.role ?? "").toLowerCase() === "admin";
     const items = [
-      { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
-      { label: "Patients", path: "/patients", icon: UserRound },
-      { label: "Operations", path: "/operations", icon: CalendarDays },
+      { label: "لوحة التحكم", path: "/dashboard", icon: LayoutDashboard },
+      { label: "مرضى اليوم", path: "/today", icon: Clock },
+      { label: "المرضى", path: "/patients", icon: UserRound },
+      { label: "العمليات", path: "/operations", icon: CalendarDays },
+      { label: "الزيارات", path: "/visits", icon: CalendarDays },
+      { label: "المتابعات", path: "/followups", icon: Repeat },
+      { label: "الفحوصات", path: "/examination", icon: Eye },
+      { label: "الروشتات", path: "/prescriptions", icon: Pill },
+      { label: "الملف الطبي", path: "/patient-file", icon: FileText },
     ];
-    if (String(user?.role ?? "").toLowerCase() === "admin") {
-      items.push({ label: "Admin Settings", path: "/admin/settings", icon: Settings });
+    if (isAdmin) {
+      items.push({ label: "مركز الإدارة", path: "/admin-hub", icon: LayoutGrid });
+      items.push({ label: "إعدادات النظام", path: "/admin/settings", icon: Settings });
     }
     return items;
   }, [user?.role]);
@@ -80,6 +106,7 @@ export default function GlobalCommandPalette() {
         placeholder="Search patients, codes, phones, Pentacam files..."
         value={query}
         onValueChange={setQuery}
+        autoFocus
       />
       <CommandList>
         <CommandEmpty>

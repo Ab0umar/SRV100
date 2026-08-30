@@ -18,6 +18,8 @@ type PatientPickerProps = {
   placeholder?: string;
   initialPatientId?: number;
   onSelect: (patient: PatientOption) => void;
+  /** When false, fetching `initialPatientId` still fills the picker UI but does not call `onSelect` (avoids duplicate navigation/sync with route-driven parents). Default true for backward compatibility. */
+  fireOnInitialPatientLoad?: boolean;
   readOnly?: boolean;
   sheetType?: "consultant" | "specialist" | "lasik" | "external";
 };
@@ -27,6 +29,7 @@ export default function PatientPicker({
   placeholder = "ابحث بالاسم أو الكود أو الموبايل...",
   initialPatientId,
   onSelect,
+  fireOnInitialPatientLoad = true,
   readOnly = false,
   sheetType,
 }: PatientPickerProps) {
@@ -34,6 +37,10 @@ export default function PatientPicker({
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<PatientOption | null>(null);
   const hydratedPatientIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    hydratedPatientIdRef.current = null;
+  }, [initialPatientId]);
 
   const patientQuery = trpc.patient.getPatient.useQuery(
     initialPatientId ?? 0,
@@ -51,14 +58,17 @@ export default function PatientPicker({
   );
 
   useEffect(() => {
-    if (!patientQuery.data) return;
+    if (!initialPatientId || !patientQuery.data) return;
     const patient = patientQuery.data as unknown as PatientOption;
+    if (patient.id !== initialPatientId) return;
     if (hydratedPatientIdRef.current === patient.id) return;
     hydratedPatientIdRef.current = patient.id;
     setSelected(patient);
     setQuery(patient.fullName ?? "");
-    onSelect(patient);
-  }, [patientQuery.data, initialPatientId]);
+    if (fireOnInitialPatientLoad) {
+      onSelect(patient);
+    }
+  }, [patientQuery.data, initialPatientId, fireOnInitialPatientLoad, onSelect]);
 
   const results = (searchQuery.data ?? []) as PatientOption[];
 
@@ -94,13 +104,13 @@ export default function PatientPicker({
             setTimeout(() => setOpen(false), 150);
           }}
           placeholder={placeholder}
-          className="h-11 rounded-2xl border-slate-200 bg-white/95 pr-10 text-right shadow-sm transition-colors focus-visible:border-sky-300 focus-visible:ring-sky-200"
+          className="h-11 rounded-2xl border-border bg-background pr-10 text-right shadow-sm transition-colors focus-visible:border-primary focus-visible:ring-primary/25"
           dir="rtl"
           readOnly={readOnly}
         />
       </div>
       {!readOnly && open && normalizedQuery.trim().length >= 1 && (
-        <div className="max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-lg">
+        <div className="max-h-64 overflow-y-auto rounded-2xl border border-border bg-popover shadow-lg">
           {searchQuery.isLoading && (
             <div className="px-3 py-2 text-sm text-muted-foreground">جاري البحث...</div>
           )}
@@ -111,7 +121,7 @@ export default function PatientPicker({
             <button
               key={patient.id}
               type="button"
-              className="w-full px-3 py-3 text-right transition-colors hover:bg-slate-50"
+              className="w-full px-3 py-3 text-right transition-colors hover:bg-accent"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 setSelected(patient);
@@ -122,7 +132,7 @@ export default function PatientPicker({
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full border border-slate-200 bg-slate-50 p-1.5 text-slate-500">
+                  <span className="rounded-full border border-border bg-muted p-1.5 text-muted-foreground">
                     <UserRound className="h-3.5 w-3.5" />
                   </span>
                   <span className="font-medium">{patient.fullName}</span>

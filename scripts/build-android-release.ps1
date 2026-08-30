@@ -73,6 +73,15 @@ Push-Location $repoRoot
 try {
     if (-not $SkipWebBuild) {
         Write-Step "Running web build"
+        $gsPath = Join-Path $repoRoot "android\app\google-services.json"
+        if (Test-Path $gsPath) {
+            $env:VITE_ENABLE_ANDROID_FCM = "1"
+            Write-Host "VITE_ENABLE_ANDROID_FCM=1 (google-services.json present)."
+        }
+        else {
+            Remove-Item Env:VITE_ENABLE_ANDROID_FCM -ErrorAction SilentlyContinue
+            Write-Host "google-services.json not found — web bundle will skip Android FCM registration (no crash)." -ForegroundColor Yellow
+        }
         pnpm build
     }
 
