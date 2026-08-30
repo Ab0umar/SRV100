@@ -1,15 +1,15 @@
-C:\nssm\win64\nssm.exe install selrs-web "C:\Program Files\nodejs\node.exe" "E:\selrs.cc\dist\index.js"
-  C:\nssm\win64\nssm.exe set selrs-web AppDirectory "E:\SELRS.cc"
-  C:\nssm\win64\nssm.exe set selrs-web AppEnvironmentExtra "NODE_ENV=production"
-  C:\nssm\win64\nssm.exe start selrs-web
+nssm.exe install SRV100 "C:\Program Files\nodejs\node.exe" "E:\SRV100\dist\index.js"
+nssm.exe set SRV100 AppDirectory "E:\SRV100"
+nssm.exe set SRV100 AppEnvironmentExtra "NODE_ENV=production"
+nssm.exe start SRV100
 
 
-C:\nssm\win64\nssm.exe install selrs-tunnel "C:\Program Files (x86)\cloudflared\cloudflared.exe" "tunnel --config C:\Users\SELRS\.cloudflared run"
-  C:\nssm\win64\nssm.exe set selrs-tunnel AppDirectory "C:\ProgramData\cloudflared"
-  C:\nssm\win64\nssm.exe set selrs-tunnel Start SERVICE_AUTO_START
-  C:\nssm\win64\nssm.exe start selrs-tunnel
+nssm.exe install selrs-tunnel "C:\Program Files (x86)\cloudflared\cloudflared.exe" "tunnel --config C:\Users\SELRS\.cloudflared run"
+nssm.exe set selrs-tunnel AppDirectory "C:\ProgramData\cloudflared"
+nssm.exe set selrs-tunnel Start SERVICE_AUTO_START
+nssm.exe start selrs-tunnel
 
-  Optional verify:
+Optional verify:
 
-  C:\nssm\win64\nssm.exe status selrs-tunnel
-  sc.exe query selrs-tunnel
+nssm.exe status selrs-tunnel
+sc.exe query selrs-tunnel
